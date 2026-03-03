@@ -14,6 +14,7 @@ str(dt3)
 
 study_design <- unique(dt4[,c(1,4:6)]) # look at site descriptions
 
+
 dt3$zoop_total <- rowSums(dt3[,c(2:51)]) # sum zoop columns
 dt3$concentration <- dt3$zoop_total/dt3$volume_sampled # and divide by volume sampled
 
@@ -22,6 +23,7 @@ conc_summary <- dt3 %>% # summarize by site
   summarise(
     mean_conc = mean(concentration, na.rm = TRUE),
     sd_conc = sd(concentration, na.rm = TRUE),
+    n_size = n(),
     .groups = "drop" # drops the grouping structure after summarizing
   )
 
@@ -35,3 +37,8 @@ ggplot(conc_summary_details, aes(x = habitat_type, y = habitat_type_2, size = me
        y = "habitat type 2",
        color = "sd") +
   theme_minimal()
+
+## could consider most relevant comparisons
+## could choose relevant taxa rather than summing all
+## still need distance between sites
+## plot zoop vs covariates
