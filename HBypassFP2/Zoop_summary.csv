@@ -1,0 +1,46 @@
+,location,mean_conc,sd_conc,n_size,habitat_type,purpose,habitat_type_2
+1,ACC,12913.49548,18562.84062,25,Agricultural Tributary,Monitoring,Perennial Instream
+2,ACCSAC1,1084.124606,891.7469743,25,Unsibsidized River,Monitoring,Perennial Instream
+3,ACCSAC2,2454.742909,2285.458233,25,Subsidized River,Monitoring,Perennial Instream
+4,ACCSAC3,1927.6944,2476.46254,25,Subsidized River,Monitoring,Perennial Instream
+5,ACCSAC4,1438.45435,1253.166116,25,Subsidized River,Monitoring,Perennial Instream
+6,ELDCAN,3748.633614,7101.03685,8,Agricultural Tributary,Monitoring,Agricultural Canal
+7,ELDSAC,1431.062555,2338.136756,8,Unsibsidized River,Monitoring,Perennial Instream
+8,KLOG,16042.49205,39929.46576,26,Agricultural Tributary,Monitoring,Perennial Instream
+9,KLOGB,194029.6907,224257.6658,5,Agricultural Tributary,Monitoring,Agricultural Canal
+10,KLSAC,2475.667408,3318.115058,26,Subsidized River,Monitoring,Perennial Instream
+11,KNG1,59290.48286,78847.59778,6,Rice Field,Experimental,Floodplain
+12,KNG2,41772.82911,45054.97678,6,Rice Field,Experimental,Floodplain
+13,KNG3,31618.263,20467.67853,6,Rice Field,Experimental,Floodplain
+14,KNG4,54391.86507,48775.63693,6,Rice Field,Experimental,Floodplain
+15,KNG5,32994.56419,35163.6972,6,Rice Field,Experimental,Floodplain
+16,KNG6,84566.90164,132684.3663,10,Rice Field,Experimental,Floodplain
+17,KNG7,31562.49179,13982.05603,6,Rice Field,Experimental,Floodplain
+18,KNG8,29046.08652,23096.76866,6,Rice Field,Experimental,Floodplain
+19,KNG9,51084.35266,76457.16454,6,Rice Field,Experimental,Floodplain
+20,KNGCAN,35716.04351,38978.62108,15,Agricultural Tributary,Experimental,Agricultural Canal
+21,MNT3A,104339.2299,135497.7538,18,Rice Field,Monitoring,Rice Field
+22,MNTEB1,10006.68601,14026.0951,26,Unsibsidized River,Monitoring,Perennial Instream
+23,MNTFEA,4409.530621,6093.936886,26,Unsibsidized River,Monitoring,Perennial Instream
+24,MNTNEW,184836.3969,172747.3512,15,Rice Field,Monitoring,Rice Field
+25,MNTNEWCAN,57426.84615,64786.56846,22,Agricultural Tributary,Monitoring,Agricultural Canal
+26,MNTNEWCAN2,91757.79805,26702.97448,4,Agricultural Tributary,Monitoring,Agricultural Canal
+27,RG92,128971.9672,112486.2874,15,Rice Field,Monitoring,Rice Field
+28,RGSAC,758.0369544,733.9476556,28,Unsibsidized River,Monitoring,Perennial Instream
+29,RRCAN,24154.45087,22783.33871,43,Agricultural Tributary,Experimental,Agricultural Canal
+30,RRSAC1,584.9566,475.5593201,43,Unsibsidized River,Experimental,Perennial Instream
+31,RRSAC2,1497.338392,1307.677981,30,Subsidized River,Experimental,Perennial Instream
+32,RRSAC2A,992.3442256,1002.293541,13,Subsidized River,Experimental,Perennial Instream
+33,RRSAC2B,1122.710038,1353.89832,9,Subsidized River,Experimental,Perennial Instream
+34,RRSAC3,269.4339893,235.9100042,10,Subsidized River,Experimental,Perennial Instream
+35,RRSAC4,761.2037739,468.9322274,33,Subsidized River,Experimental,Perennial Instream
+36,RRSAC5,931.5977122,636.8949851,23,Subsidized River,Experimental,Perennial Instream
+37,RRSAC6,907.5316847,538.3176172,23,Subsidized River,Experimental,Perennial Instream
+38,RRSAC7,734.6441988,330.2520272,23,Subsidized River,Experimental,Perennial Instream
+39,RRSAC8,798.613724,407.0298895,23,Subsidized River,Experimental,Perennial Instream
+40,SFT18,233246.0344,190257.5825,6,Rice Field,Monitoring,Rice Field
+41,SFTSAC,1194.62239,1593.80359,24,Unsibsidized River,Monitoring,Perennial Instream
+42,SMSAC,1250.108903,1251.86994,25,Unsibsidized River,Monitoring,Perennial Instream
+43,SMSSL,4097.829704,6772.270745,25,Subsidized River,Monitoring,Perennial Instream
+44,SMSUT,1858.155417,2475.670415,17,Unsibsidized River,Monitoring,Perennial Instream
+45,TPSAC,4984.458806,6227.279886,26,Subsidized River,Monitoring,Perennial Instream
