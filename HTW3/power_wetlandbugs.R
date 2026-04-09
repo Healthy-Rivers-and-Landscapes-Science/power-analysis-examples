@@ -13,6 +13,8 @@ library(effects)
 library(simr)
 #mapping
 library(sf)
+#install.packages("devtools")
+devtools::install_github("InteragencyEcologicalProgram/deltamapr")
 library(deltamapr)
 
 #grab wetland bug data
@@ -73,7 +75,29 @@ mutate(Longitude = case_when(Longitude >0 ~ Longitude*-1,
   filter(!is.na(Project_na)) %>%
   st_drop_geometry()
 
+# taxa exploration
+order_freq <- bugsexternal %>%
+  count(Order) %>%
+  mutate(freq = n / sum(n))
 
+write.csv(order_freq, "order_freq.csv")
+
+bug_example = filter(bugsexternal, Order %in% c("Calanoida", "Cyclopoida", "Amphipoda", "Cladocera",
+                                                "Ploima", "Mysida", "Coleoptera", "Decapoda", "Diptera",
+                                                "Hemiptera", "Isopoda", "Harpacticoida"))
+
+ggplot(bug_example, aes(x = site_type, y= Order)) +
+  geom_jitter(width = 0.2) +
+  facet_wrap(~ Source)
+
+
+ggplot(data = bug_example, aes(x = CPUE)) +
+  geom_histogram(binwidth = 1000, fill = "blue", color = "black")+
+  scale_y_log10()+
+  facet_wrap(SizeClass~ Order)
+
+amp <- subset(bug_example, Order == "Amphipoda")
+hist(amp$CPUE)
 ##########################################################################################
 #OK, let's start with amphipod density
 #first up, density of amphipods ###########################################
@@ -124,6 +148,19 @@ ggplot(amphipods_sub, aes(x = Project_na, y = logCPUE))+
 ggplot(amphipods_sub, aes(x = Source, y = logCPUE, fill = site_type)) +
   geom_boxplot()
 
+# look at more covariates
+plot(amphipods_sub$Chlorophyll, amphipods_sub$logCPUE)
+plot(amphipods_sub$Chl, amphipods_sub$logCPUE)
+plot(amphipods_sub$Secchi, amphipods_sub$logCPUE)
+plot(amphipods_sub$Temperature, amphipods_sub$logCPUE)
+plot(amphipods_sub$Conductivity, amphipods_sub$logCPUE)
+
+boxplot(logCPUE ~ Month, data = amphipods_sub)
+boxplot(logCPUE ~ Year, data = amphipods_sub)
+boxplot(logCPUE ~ site_type, data = amphipods_sub)
+boxplot(logCPUE ~ Region, data = amphipods_sub)
+boxplot(logCPUE ~ Season, data = amphipods_sub)
+boxplot(logCPUE ~ Station, data = amphipods_sub)
 #######################################################################################
 #now start modeling
 #Our basic linear model will be testing the difference in CPUE between site types
