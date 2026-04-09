@@ -75,6 +75,7 @@ mutate(Longitude = case_when(Longitude >0 ~ Longitude*-1,
   filter(!is.na(Project_na)) %>%
   st_drop_geometry()
 
+# taxa exploration
 order_freq <- bugsexternal %>%
   count(Order) %>%
   mutate(freq = n / sum(n))
@@ -147,6 +148,19 @@ ggplot(amphipods_sub, aes(x = Project_na, y = logCPUE))+
 ggplot(amphipods_sub, aes(x = Source, y = logCPUE, fill = site_type)) +
   geom_boxplot()
 
+# look at more covariates
+plot(amphipods_sub$Chlorophyll, amphipods_sub$logCPUE)
+plot(amphipods_sub$Chl, amphipods_sub$logCPUE)
+plot(amphipods_sub$Secchi, amphipods_sub$logCPUE)
+plot(amphipods_sub$Temperature, amphipods_sub$logCPUE)
+plot(amphipods_sub$Conductivity, amphipods_sub$logCPUE)
+
+boxplot(logCPUE ~ Month, data = amphipods_sub)
+boxplot(logCPUE ~ Year, data = amphipods_sub)
+boxplot(logCPUE ~ site_type, data = amphipods_sub)
+boxplot(logCPUE ~ Region, data = amphipods_sub)
+boxplot(logCPUE ~ Season, data = amphipods_sub)
+boxplot(logCPUE ~ Station, data = amphipods_sub)
 #######################################################################################
 #now start modeling
 #Our basic linear model will be testing the difference in CPUE between site types
