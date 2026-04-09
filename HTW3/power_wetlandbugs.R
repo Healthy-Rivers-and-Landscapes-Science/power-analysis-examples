@@ -13,6 +13,8 @@ library(effects)
 library(simr)
 #mapping
 library(sf)
+#install.packages("devtools")
+devtools::install_github("InteragencyEcologicalProgram/deltamapr")
 library(deltamapr)
 
 #grab wetland bug data
@@ -73,7 +75,28 @@ mutate(Longitude = case_when(Longitude >0 ~ Longitude*-1,
   filter(!is.na(Project_na)) %>%
   st_drop_geometry()
 
+order_freq <- bugsexternal %>%
+  count(Order) %>%
+  mutate(freq = n / sum(n))
 
+write.csv(order_freq, "order_freq.csv")
+
+bug_example = filter(bugsexternal, Order %in% c("Calanoida", "Cyclopoida", "Amphipoda", "Cladocera",
+                                                "Ploima", "Mysida", "Coleoptera", "Decapoda", "Diptera",
+                                                "Hemiptera", "Isopoda", "Harpacticoida"))
+
+ggplot(bug_example, aes(x = site_type, y= Order)) +
+  geom_jitter(width = 0.2) +
+  facet_wrap(~ Source)
+
+
+ggplot(data = bug_example, aes(x = CPUE)) +
+  geom_histogram(binwidth = 1000, fill = "blue", color = "black")+
+  scale_y_log10()+
+  facet_wrap(SizeClass~ Order)
+
+amp <- subset(bug_example, Order == "Amphipoda")
+hist(amp$CPUE)
 ##########################################################################################
 #OK, let's start with amphipod density
 #first up, density of amphipods ###########################################
