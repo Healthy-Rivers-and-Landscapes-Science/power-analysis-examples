@@ -113,6 +113,16 @@ log_prey_dat <- prey_dat %>%
   summarise(total_value = sum(CPUE)) %>%
   mutate(logCPUE = log(total_value), logCPUE = if_else(logCPUE == -Inf, 0, logCPUE))
 
+log_prey_dat_combo <- merge(log_prey_dat, unique(prey_dat[,c(2, 5, 8, 9, 11:16, 19, 21, 24, 41:44)]), by = "SampleID", all = TRUE)
 
 log_eury_dat <- eury_dat %>% mutate(logCPUE = log(CPUE), logCPUE = if_else(logCPUE == -Inf, 0, logCPUE))
 
+# add restoration date, Stacy recommends to drop Lindsey and LICB
+# Prospect Island is still under construction
+# site meta data will be added to edi package, but for now, adding here
+
+site_metadata <- read.csv("HTW3/site_metadata.csv")
+
+log_prey_dat_site <- merge(log_prey_dat_combo, site_metadata[,-c(1,3)], by = "Project_na", all.y = TRUE)
+
+log_eury_dat_site <- merge(log_eury_dat, site_metadata[,-c(1,3)], by = "Project_na", all.y = TRUE)
