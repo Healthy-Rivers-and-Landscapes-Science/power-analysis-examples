@@ -111,11 +111,11 @@ sample_check <- unique(prey_dat[,c(2, 5, 14)]) # lump using SampleID
 log_prey_dat <- prey_dat %>%
   group_by(SampleID) %>%
   summarise(total_value = sum(CPUE)) %>%
-  mutate(logCPUE = log(total_value), logCPUE = if_else(logCPUE == -Inf, 0, logCPUE))
+  mutate(logCPUE = log(total_value+1))#, logCPUE = if_else(logCPUE == -Inf, 0, logCPUE))
 
 log_prey_dat_combo <- merge(log_prey_dat, unique(prey_dat[,c(2, 5, 8, 9, 11:16, 19, 21, 24, 41:44)]), by = "SampleID", all = TRUE)
 
-log_eury_dat <- eury_dat %>% mutate(logCPUE = log(CPUE), logCPUE = if_else(logCPUE == -Inf, 0, logCPUE))
+log_eury_dat <- eury_dat %>% mutate(logCPUE = log(CPUE+1))#, logCPUE = if_else(logCPUE == -Inf, 0, logCPUE))
 
 # add restoration date, Stacy recommends to drop Lindsey and LICB
 # Prospect Island is still under construction
