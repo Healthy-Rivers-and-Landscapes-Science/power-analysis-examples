@@ -13,6 +13,9 @@ data <- readr::read_csv(file = temp_dat)
 # org_lookup
 temp_dat <- read_data_entity(packageId = "edi.269.6", entityId = temp$entityId[1])
 data_org <- readr::read_csv(file = temp_dat)
+# zero dates
+temp_dat <- read_data_entity(packageId = "edi.269.6", entityId = temp$entityId[2])
+sampling_dat <- readr::read_csv(file = temp_dat)
 
 # site meta data will be added to edi package, but for now, adding here
 site_metadata <- read.csv("HTW3/site_metadata_updated.csv")
@@ -85,13 +88,37 @@ prey_dat <- rbind(genus_dat, order_dat, family_dat)
 
 eury_dat <- subset(org_dat_spring, Genus == "Eurytemora")
 
+# add zero catch
+keep_list <- c("Browns Island","Decker Island","Ryer Island","Tule Red","Webb Tract Islands and Berms","Winter Island")
+subset_dates <- sampling_dat[sampling_dat$Location %in% keep_list, ]
+
+pairs1 <- (unique(subset_dates[,c(2,3)]))
+pairs2 <- (unique(prey_dat[,c(5,7)]))
+pairs3 <- (unique(eury_dat[,c(5,7)]))
+
+pairs2$prey <- 1
+pairs3$eury <- 1
+merged_df <- merge(pairs1, pairs2, by = c("Date", "Location"), all = TRUE)
+merged_df2 <- merge(pairs1, pairs3, by = c("Date", "Location"), all = TRUE)
+
+merged_df[is.na(merged_df)] <- 0
+merged_df_corrected <- subset(merged_df, prey == 0)
+colnames(merged_df_corrected)[3] <- "AdjCount"
+
+merged_df2[is.na(merged_df2)] <- 0
+merged_df2_corrected <- subset(merged_df2, eury == 0)
+colnames(merged_df2_corrected)[3] <- "AdjCount"
+
+prey_dat_zero <- bind_rows(prey_dat, merged_df_corrected)
+eury_dat_zero <- bind_rows(eury_dat, merged_df2_corrected)
+
 # add restoration date,
 # Stacy's recommended comparisons - Tule Red/Ryer, Winter Island/Browns Island, Decker Island/Webb Tract Islands and Berms (WTIB)
 
-prey_dat_rest <- merge(prey_dat, site_metadata, by = "Location", all.y = TRUE)
+prey_dat_rest <- merge(prey_dat_zero, site_metadata, by = "Location", all.y = TRUE)
 unique(prey_dat_rest[,c(1,6,38:40)])
 
-eury_dat_rest <- merge(eury_dat, site_metadata, by = "Location", all.y = TRUE)
+eury_dat_rest <- merge(eury_dat_zero, site_metadata, by = "Location", all.y = TRUE)
 
 # need to make before/after for channel/reference specific to the completion dates for each restored site
 rest.sum <- subset(site_metadata, year_complete != "NA")
@@ -112,16 +139,17 @@ for(i in rest.sum$Location){
 
 # add day of year
 prey_dat_rest_mod$day_of_year <- yday(prey_dat_rest_mod$Date)
+prey_dat_rest_mod$year <- year(prey_dat_rest_mod$Date)
 
 # 1
-comp_1 <- subset(prey_dat_rest_mod, Location == c("Ryer Island", "Tule Red", "Tule Red_Adjacent"))
+comp_1 <- prey_dat_rest_mod[prey_dat_rest_mod$Location %in% c("Ryer Island", "Tule Red"), ]
 colnames(comp_1)[42] <- "test"
 
 # 2
-comp_2 <- subset(prey_dat_rest_mod, Location == c("Browns Island", "Winter Island"))
+comp_2 <- prey_dat_rest_mod[prey_dat_rest_mod$Location %in% c("Browns Island", "Winter Island"), ]
 colnames(comp_2)[43] <- "test"
 # 3
-comp_3 <- subset(prey_dat_rest_mod, Location == c("Decker Island", "Webb Tract Islands and Berms"))
+comp_3 <-  prey_dat_rest_mod[prey_dat_rest_mod$Location %in% c("Decker Island", "Webb Tract Islands and Berms"), ]
 colnames(comp_3)[41] <- "test"
 
 full_comp <- rbind(comp_1[,-c(41,43)], comp_2[,-c(41,42)], comp_3[,-c(42,43)])

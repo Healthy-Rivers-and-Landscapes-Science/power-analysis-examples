@@ -11,6 +11,7 @@ library(lubridate)
 library(MASS)
 library(lattice)
 library(car)
+library(ggsignif)
 
 ggplot(log_prey_dat_site, aes(x = Project_na, y = logCPUE, fill = site_type)) +
   geom_boxplot() +
@@ -163,3 +164,29 @@ sd(full_comp$logCPUE)
 model_full <- lm(logCPUE ~  site_type + day_of_year + test +
                    Secchi + Temperature + SalSurf + TurbidityNTU + TowType +
                    Tide + DO  + pH, data = full_comp)
+
+
+ggplot(comp_1, aes(x = Location, y = CPUE, fill = site_type)) +
+  geom_boxplot() +
+  facet_grid( ~factor(test, levels = c("before", "after"))) +
+               ylim(0, 10)+
+  scale_y_log10()+
+  geom_signif(comparisons = list(c("Ryer Island", "Tule Red")),
+              map_signif_level=TRUE)
+  #geom_signif(comparisons = list(c("Browns Island", "Winter Island")),
+              map_signif_level=TRUE)
+  #geom_signif(comparisons = list(c("Decker Island", "Webb Tract Islands and Berms")),
+              map_signif_level=TRUE)
+
+ggplot(comp_3, aes(x = Location, y = CPUE, fill = test)) +
+  geom_boxplot() +
+  ylim(0, 10)+
+  scale_y_log10()+
+  geom_signif(comparisons = list(c("before", "after", "Decker Island", "Webb Tract Islands and Berms")),
+              map_signif_level=TRUE)
+
+decker <- subset(comp_3, Location == "Decker Island")
+decker_before <- subset(decker, test == "before")
+decker_after <- subset(decker, test == "after")
+
+t.test(decker_before$CPUE, decker_after$CPUE, paired = TRUE)
