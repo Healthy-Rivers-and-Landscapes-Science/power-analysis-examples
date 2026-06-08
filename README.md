@@ -12,4 +12,4 @@ Reproducible workflows for power analysis examples in the HRL Science Plan
 
 [HDeltaFlow3](https://github.com/Healthy-Rivers-and-Landscapes-Science/power-analysis-examples/tree/main/HDeltaFlow3): Increased spring Delta outflows will improve recruitment for longfin spawning and will result in increased adult abundance 
 
-[HTribPop1](https://github.com/Healthy-Rivers-and-Landscapes-Science/power-analysis-examples/tree/main/HDeltaFlow6): Increased availability of floodplain rearing habitat and invertebrate food sources produced on seasonally flooded agricultural land will result in increased usage of these habitats and food sources, reflected in retrospective analyses in the returning adult populations of natural origin Chinook salmon. . 
+[HTribPop1](https://github.com/Healthy-Rivers-and-Landscapes-Science/power-analysis-examples/tree/main/HTribPop1): Increased availability of floodplain rearing habitat and invertebrate food sources produced on seasonally flooded agricultural land will result in increased usage of these habitats and food sources, reflected in retrospective analyses in the returning adult populations of natural origin Chinook salmon. . 
