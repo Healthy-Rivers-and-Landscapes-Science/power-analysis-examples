@@ -53,26 +53,26 @@ suppressPackageStartupMessages({
 p0 <- 0.50
 
 ## this defines the combined off-channel proportion from Sacramento adult datasets
-p1 <- 0.83
+p1 <- 0.84
 
 ## this defines the combined Sacramento true natal origin assignment rate
-pS <- 0.49
+pS <- 0.43
 
 ## this defines the number of otoliths analyzed and true Sacramento origin adults 
-oto_all_2016 <- 170
-oto_sac_2016 <- 60
-oto_all_2017 <- 193
-oto_sac_2017 <- 115
-oto_all_2021 <- 61
-oto_sac_2021 <- 32
+oto_all_2016 <- 154
+oto_sac_2016 <- 52
+oto_all_2017 <- 197
+oto_sac_2017 <- 107
+oto_all_2021 <- 66
+oto_sac_2021 <- 22
 
 ## this defines the number of eye lenses analyzed and the number of off-channel users
-lens_all_2016 <- 54
+lens_all_2016 <- 52
 lens_off_2016 <- 38
-lens_all_2017 <- 102
-lens_off_2017 <- 89
-lens_all_2021 <- 19
-lens_off_2021 <- 19
+lens_all_2017 <- 97
+lens_off_2017 <- 84
+lens_all_2021 <- 16
+lens_off_2021 <- 16
 
 ## create input summary table 
 input_table <- tibble::tribble(
