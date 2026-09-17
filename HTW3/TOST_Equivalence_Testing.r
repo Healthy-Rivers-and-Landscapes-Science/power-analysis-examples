@@ -18,6 +18,7 @@
 # install.packages("TOSTER")
 
 library(TOSTER)
+library(tidyverse)
 
 # ============================================================
 # STEP 1: Define study assumptions
@@ -85,6 +86,21 @@ print(power_result)
 ref <- subset(eury_dat_rest, Location == "Ryer Island" & Date>= as.Date("2019/10/15"))
 current_method <- ref$Count/ref$effort
 
+#I don't know what current method is or new method.
+summary(ref$CPUE)
+summary(current_method)
+#no zeros
+
+#pascale says this might be it
+mightbeit = read_csv("pwr_dat.csv")
+summary(mightbeit)
+#well, this seems odd
+ref <- subset(mightbeit, Location == "Ryer Island" & Date>= as.Date("2019/10/15"))
+hist(log(ref$CPUE))
+
+current_method <- ref$Count/ref$effort
+
+
 ##############################
 head(ref)
 mean(current_method, na.rm=TRUE)
@@ -98,6 +114,7 @@ mean(current_method, na.rm=TRUE)-mean(new_method, na.rm=TRUE)
 ##############################
 
 restored <- subset(eury_dat_rest, Location == "Tule Red" & Date>= as.Date("2019/10/15"))
+restored2 = filter(mightbeit, Location == "Tule Red" & Date>= as.Date("2019/10/15"))
 new_method <- restored$Count/restored$effort
 
 # test "Browns Island", "Winter Island", 2019/09/25

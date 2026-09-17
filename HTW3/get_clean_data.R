@@ -4,6 +4,7 @@
 library(EDIutils)
 library(readxl)
 library(tidyverse)
+login(key = "l8sfres2dfOtnqglJUWSTELs1Uk")
 
 # get data
 temp <- read_data_entity_names(packageId = "edi.269.6")
