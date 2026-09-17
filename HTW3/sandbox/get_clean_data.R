@@ -6,6 +6,17 @@ library(readxl)
 library(tidyverse)
 login(key = "l8sfres2dfOtnqglJUWSTELs1Uk")
 
+
+# authenticate with your EDI user profile
+Sys.setenv(EDI_USER = "your_edi_username")
+Sys.setenv(EDI_PASS = "your_edi_password")
+
+library(EDIutils)
+login(
+  userId = Sys.getenv("EDI_USER"),
+  userPass = Sys.getenv("EDI_PASS")
+)
+
 # get data
 temp <- read_data_entity_names(packageId = "edi.269.6")
 # zoop
@@ -39,6 +50,35 @@ dat_season = data %>% mutate(Month = month(Date),
 
 dat_spring <- subset(dat_season, Season == "Spring")
 
+# subset to sites of interest
+dat_loc = filter(dat_spring, Location %in% c("Browns Island","Decker Island","Ryer Island","Tule Red","Webb Tract Islands and Berms","Winter Island"))
+
+# add zeros using Rosie's solution
+ZoopsSites = left_join(dat_loc, sampling_dat, by = c("VisitNo", "Date"))
+
+glimpse(ZoopsSites)
+
+#Something is up with the "Location", a few of them don't match
+
+weirdsites = filter(ZoopsSites, Location.x != Location.y)
+#oh, one table is missing the "s" in "Berms". I thought I told them to fix that. Whatever.
+
+ZoopsSites = mutate(ZoopsSites, Location = Location.x) %>%
+  select(-Location.x, -Location.y)
+
+ZoopswZeros = ZoopsSites %>%
+  arrange(CommonName) %>%
+  pivot_wider( id_cols = c(VisitNo:subsample,effort, Temp:Location),
+               names_from = CommonName, #value we want for the column names
+               values_from = Count, #value we want in the cells - this is the number counted, not adjusted for subsampling or effort yet.
+               values_fill = 0) %>% #fill any missing values with zeros
+
+  #now put it back into longformat
+  pivot_longer(cols = c(Acanthocyclops:`Worm UNID`), names_to = "CommonName", values_to = "Count")
+
+nrow(ZoopsSites)
+nrow(ZoopswZeros)
+
 # meso-zooplankton most relevant as smelt diets
 # lump CPUE and Eurytemora only
 
@@ -67,9 +107,9 @@ dat_spring <- subset(dat_season, Season == "Spring")
 # Daphnia
 # Tortanus
 
-org_dat_spring <- merge(dat_spring, data_org, by = "CommonName", all.x = TRUE)
+org_dat_spring <- merge(ZoopswZeros, data_org, by = "CommonName", all.x = TRUE)
 
-taxa_check <- unique(org_dat_spring[,c(30:35)])
+taxa_check <- unique(org_dat_spring[,c(39:44)])
 
 genus_dat = filter(org_dat_spring, Genus %in% c("Acanthocyclops", "Eurytemora", "Acartiella", "Gammarus",
                                             "Bosmina", "Hyperacanthomysis", "Ceriodaphnia", "Ilyocryptus", "Limnoithona",
@@ -90,36 +130,36 @@ prey_dat <- rbind(genus_dat, order_dat, family_dat)
 eury_dat <- subset(org_dat_spring, Genus == "Eurytemora")
 
 # add zero catch
-keep_list <- c("Browns Island","Decker Island","Ryer Island","Tule Red","Webb Tract Islands and Berms","Winter Island")
-subset_dates <- sampling_dat[sampling_dat$Location %in% keep_list, ]
+#keep_list <- c("Browns Island","Decker Island","Ryer Island","Tule Red","Webb Tract Islands and Berms","Winter Island")
+#subset_dates <- sampling_dat[sampling_dat$Location %in% keep_list, ]
 
-pairs1 <- (unique(subset_dates[,c(2,3)]))
-pairs2 <- (unique(prey_dat[,c(5,7)]))
-pairs3 <- (unique(eury_dat[,c(5,7)]))
+#pairs1 <- (unique(subset_dates[,c(2,3)]))
+#pairs2 <- (unique(prey_dat[,c(5,7)]))
+#pairs3 <- (unique(eury_dat[,c(5,7)]))
 
-pairs2$prey <- 1
-pairs3$eury <- 1
-merged_df <- merge(pairs1, pairs2, by = c("Date", "Location"), all = TRUE)
-merged_df2 <- merge(pairs1, pairs3, by = c("Date", "Location"), all = TRUE)
+#pairs2$prey <- 1
+#pairs3$eury <- 1
+#merged_df <- merge(pairs1, pairs2, by = c("Date", "Location"), all = TRUE)
+#merged_df2 <- merge(pairs1, pairs3, by = c("Date", "Location"), all = TRUE)
 
-merged_df[is.na(merged_df)] <- 0
-merged_df_corrected <- subset(merged_df, prey == 0)
-colnames(merged_df_corrected)[3] <- "AdjCount"
+#merged_df[is.na(merged_df)] <- 0
+#merged_df_corrected <- subset(merged_df, prey == 0)
+#colnames(merged_df_corrected)[3] <- "AdjCount"
 
-merged_df2[is.na(merged_df2)] <- 0
-merged_df2_corrected <- subset(merged_df2, eury == 0)
-colnames(merged_df2_corrected)[3] <- "AdjCount"
+#merged_df2[is.na(merged_df2)] <- 0
+#merged_df2_corrected <- subset(merged_df2, eury == 0)
+#colnames(merged_df2_corrected)[3] <- "AdjCount"
 
-prey_dat_zero <- bind_rows(prey_dat, merged_df_corrected)
-eury_dat_zero <- bind_rows(eury_dat, merged_df2_corrected)
+#prey_dat_zero <- bind_rows(prey_dat, merged_df_corrected)
+#eury_dat_zero <- bind_rows(eury_dat, merged_df2_corrected)
 
 # add restoration date,
 # Stacy's recommended comparisons - Tule Red/Ryer, Winter Island/Browns Island, Decker Island/Webb Tract Islands and Berms (WTIB)
 
-prey_dat_rest <- merge(prey_dat_zero, site_metadata, by = "Location", all.y = TRUE)
+prey_dat_rest <- merge(prey_dat, site_metadata, by = "Location", all.y = TRUE)
 unique(prey_dat_rest[,c(1,6,38:40)])
 
-eury_dat_rest <- merge(eury_dat_zero, site_metadata, by = "Location", all.y = TRUE)
+eury_dat_rest <- merge(eury_dat, site_metadata, by = "Location", all.y = TRUE)
 
 # need to make before/after for channel/reference specific to the completion dates for each restored site
 rest.sum <- subset(site_metadata, year_complete != "NA")
