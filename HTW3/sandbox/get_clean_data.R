@@ -4,6 +4,7 @@
 library(EDIutils)
 library(readxl)
 library(tidyverse)
+login(key = "l8sfres2dfOtnqglJUWSTELs1Uk")
 
 
 # authenticate with your EDI user profile

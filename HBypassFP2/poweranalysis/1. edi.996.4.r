@@ -6,7 +6,7 @@
   # Uncomment the following lines to have R clear previous work, or set a working directory
   # rm(list=ls())
 
-setwd("C:/Users/bcraw/OneDrive/Documents/GitHub/power-analysis-examples/HBypassFP2/poweranalysis")
+setwd("C:/Users/...")
 rm(list=ls())
 
 
