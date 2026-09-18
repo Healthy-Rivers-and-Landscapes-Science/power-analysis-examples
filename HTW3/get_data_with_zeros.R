@@ -25,6 +25,26 @@ dat_loc = filter(dat_spring, Location %in% c("Browns Island","Decker Island","Ry
 # Eurytemora only
 eury_dat <- subset(dat_loc, CommonName == c("Eurytemora affinis", "Eurytemora copepodid", "Eurytemora nauplii"))
 
+test = dat_spring %>%
+  filter(Date>= as.Date("2019/10/15")) %>%
+  select(SampleID_frp, Location) %>%
+  distinct() %>%
+  group_by(Location) %>%
+  summarize(N = n())
+
+dat_spring_wzeros = pivot_wider(dat_spring,
+                                id_cols = c(SampleID_frp, Location, Date),
+                                names_from = CommonName, values_from = CPUE, values_fn = sum,
+                                values_fill = 0) %>%
+  pivot_longer(cols = c(`Pseudodiaptomus nauplii`:last_col()), names_to = "CommonName", values_to = "CPUE")
+
+eury_spring_wzeros = filter(dat_spring_wzeros, CommonName %in% c("Eurytemora affinis", "Eurytemora copepodid")) %>%
+  group_by(SampleID_frp, Location, Date) %>%
+  summarize(CPUE = sum(CPUE))
+
+
+
+
 # zero data needs to be added
 all_samples <- unique(dat_loc[,c(4,6)])
 eury_samples <- unique(eury_dat[,c(4,6)])

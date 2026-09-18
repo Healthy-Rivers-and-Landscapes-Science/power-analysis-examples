@@ -93,43 +93,42 @@ summary(current_method)
 
 #pascale says this might be it
 mightbeit = read_csv("pwr_dat.csv")
+glimpse(mightbeit)
+betterdat = group_by(mightbeit, SampleID_frp, Location, Date) %>%
+  summarize(CPUE = sum(CPUE))
+
 summary(mightbeit)
+hist(mightbeit$CPUE)
 #well, this seems odd
-ref <- subset(mightbeit, Location == "Ryer Island" & Date>= as.Date("2019/10/15"))
+ref <- subset(eury_spring_wzeros, Location == "Ryer Island" & Date>= as.Date("2019/10/15")) %>%
+  mutate(logCPUE = log(CPUE +1))
+hist(ref$CPUE, breaks = 100)
 hist(log(ref$CPUE))
 
-current_method <- ref$Count/ref$effort
+current_method <- ref$CPUE
 
+restored <- subset(eury_dat_rest, Location == "Tule Red" & Date>= as.Date("2019/10/15"))
+restored2 = filter(eury_spring_wzeros, Location == "Tule Red" & Date>= as.Date("2019/10/15")) %>%
+  mutate(logCPUE = log(CPUE +1))
+new_method <- restored2$CPUE
 
 ##############################
 head(ref)
-mean(current_method, na.rm=TRUE)
-sd(current_method, na.rm = TRUE)
+mean(ref$CPUE, na.rm=TRUE)
+sd(ref$CPUE, na.rm = TRUE)
 
-mean(new_method, na.rm=TRUE)
-sd(new_method, na.rm=TRUE)
-mean(current_method, na.rm=TRUE)-mean(new_method, na.rm=TRUE)
-
-# -35.06795, -1.614559, -0.9234827
+mean(restored2$CPUE, na.rm=TRUE)
+sd(restored2$CPUE, na.rm=TRUE)
+mean(ref$CPUE, na.rm=TRUE)-mean(restored2$CPUE, na.rm=TRUE)
 ##############################
 
-restored <- subset(eury_dat_rest, Location == "Tule Red" & Date>= as.Date("2019/10/15"))
-restored2 = filter(mightbeit, Location == "Tule Red" & Date>= as.Date("2019/10/15"))
-new_method <- restored$Count/restored$effort
 
-# test "Browns Island", "Winter Island", 2019/09/25
-ref <- subset(eury_dat_rest, Location == "Browns Island" & Date>= as.Date("2019/09/25"))
-current_method <- ref$Count/ref$effort
+#TOST is based on a t test, meaning we need to meet all the assumptions of the t test
+#- independance of observations
+#_ normality
+#homogeneity of variance
 
-restored <- subset(eury_dat_rest, Location == "Winter Island" & Date>= as.Date("2019/09/25"))
-new_method <- restored$Count/restored$effort
 
-# test "Webb Tract Islands and Berms", "Decker Island", 2018/10/11
-ref <- subset(eury_dat_rest, Location == "Webb Tract Islands and Berms" & Date>= as.Date("2018/10/11"))
-current_method <- ref$Count/ref$effort
-
-restored <- subset(eury_dat_rest, Location == "Decker Island" & Date>= as.Date("2018/10/11"))
-new_method <- restored$Count/restored$effort
 
 # ============================================================
 # STEP 5: Run TOST for independent samples
@@ -140,8 +139,8 @@ tost_result <- tsum_TOST(
   m2 = mean(new_method),
   sd1 = sd(current_method),
   sd2 = sd(new_method),
-  n1 = n,
-  n2 = n,
+  n1 = 16,
+  n2 = 16,
   low_eqbound = -0.2,
   high_eqbound = 0.2,
   alpha = 0.05
@@ -150,6 +149,31 @@ tost_result <- tsum_TOST(
 print(tost_result)
 describe(tost_result)
 # Results: Reject the null, so the test confirms the difference is small and the methods are equivalent.
+
+#log-transformed data
+tost_result2 <- tsum_TOST(
+  m1 = mean(log(current_method+1), na.rm =T),
+  m2 = mean(log(new_method+1), na.rm =T),
+  sd1 = sd(log(current_method+1), na.rm =T),
+  sd2 = sd(log(new_method+1), na.rm =T),
+  n1 = 16,
+  n2 = 16,
+  low_eqbound = -0.2,
+  high_eqbound = 0.2,
+  alpha = 0.05
+)
+
+print(tost_result2)
+describe(tost_result2)
+
+
+tostpower <- power_t_TOST(
+  alpha = 0.05,
+  power = 0.80,
+  eqb =.5,
+  sd = 1.49
+)
+tostpower
 
 # ============================================================
 # STEP 6: Paired-sample power analysis
