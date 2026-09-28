@@ -1,0 +1,348 @@
+# The code below demonstrates how to do a BACI analysis for redd density when control and impact sites are not paired (system wide).
+# Due to no pairing specific control sits to treatment sites, the random effect will be "site" instead of "sub_id" to prevent model overfitting.
+# The random effect may need to change depending on the data for your system.
+
+# This example comes from the Feather River
+# By Kiera McNeely 4/28/2026 
+# Cramer Fish Sciences
+
+
+
+# libraries----
+library(dplyr) # data manipulation
+library(lubridate) # dates
+library(ggplot2) # plot
+library(tidyr) # complete for missing redd data
+library(lmerTest) # LMER 
+library(stringr) # data manipulation
+
+
+# Bootstrap Function (group by site) 
+boot_baci <- function(impact_sites, control_sites, boot_itr, n_sites, all_data){ # need list of impact sites, control sites, all_data to filter from.
+  
+  # create results table
+  total_rows <- length(n_sites)*boot_itr 
+  boot_res <- data.frame(n = numeric(total_rows),         
+                         effect_size = numeric(total_rows),
+                         pvalue = numeric(total_rows))
+  counter <- 1 # counter for storing results
+  site_used <- data.frame() # dataframe for bootstrap data
+  
+  
+  for(n_site in n_sites){# repeat bootstrap for each n value
+    print(n_site)
+    for(i in 1:boot_itr){ 
+      
+      # resample data
+      imp <- sample(impact_sites, size = n_site, replace = T) # resample impact sites with replacement
+      con <- sample(control_sites, size = n_site, replace = T) # resample control sits with replacement
+      all_sites <- c(imp,con) # get a list of sits used for this bootstrap iteration
+      
+      # grab all years of data for each site used in the current iteation
+      mod_data <- NULL
+      for(s in all_sites){
+        keep <- all_data[all_data$site_id == s,]
+        mod_data <- rbind(mod_data,keep)
+      }
+      
+      # BACI - Be sure the random effect (1|variable) is the correct grouping variable for your data.
+      mod <- lmerTest::lmer(density ~ binary_time*binary_type + (1|site), data=mod_data)
+      mod_sum <- summary(mod)
+      p_value <- mod_sum$coefficients[4, 5]
+      eff_size <- ifelse(p_value <= 0.05, mod_sum$coefficients[4, 1], NA) #store coefficient, ONLY when significant
+      
+      
+      # Save results
+      res <- c(n_site, eff_size, p_value)
+      boot_res[counter,] <- res
+      counter <- counter +1
+      
+    } #/bootstrap
+  } #/sample size
+  
+  # summarize bootstrap results for each sample size
+  summary <- boot_res %>% group_by(n) %>% 
+    summarize(mean_eff_size = mean(effect_size, na.rm=T),
+              mean_power = mean(pvalue < 0.05, na.rm=T)) 
+  results <<- boot_res
+  return(summary)
+}
+
+
+
+
+# Fall Spawning Season BACI --------------------------------------------------------------
+# Data Formatting and Reading in data
+# redd count data for the feather river that includes site, sub id, and sub area
+redds <- read.csv("formatted_data_R/2020_2023_FR_redds_subsite_join.csv") %>% select(date, location, number_red, year, site, sub_id, sub_area, treatment)
+# site data that includes site, treatment, sub id, and sub area
+sites <- read.csv("formatted_data_R/2020_2023_FR_spawning_subsite_poly_full_20260810.csv")
+
+
+# Filter site data to include the project and control sites of interest, create site id
+pre_post_sites <- c("Bedrock", "Cottonwood", "TopofAuditorium", "UpperCottonwood")  # list of treatment sites 
+control_sites <- c("LowerTableMountain", "TableMountain") # list of control sites
+# Filter site data to only include the treatment and control sites
+sites1 <- sites %>% 
+  filter(site %in% c(pre_post_sites, control_sites) & treatment %in% c("Pre-Project", "Post-Project", "Control")) %>%
+  mutate(site_id = paste0(site, "_", sub_id))
+
+
+# Filter redd data to only include redds from the sites of interest, create a column for time (before or after treatment) and type (control or impact).
+redds1 <- redds %>% 
+  filter(site %in% c(pre_post_sites, control_sites) & treatment %in% c("Pre-Project", "Post-Project", "Control")) %>%
+  mutate(date = as.Date(date, format = "%Y/%m/%d"),
+         site_id = paste0(site, "_", sub_id),  # subsite 
+         time = ifelse(year== 2023, "After", "Before"),
+         type = ifelse(treatment == "Control", "Control", "Impact"))
+
+# Add survey number to redd count data
+survey_number <- read.csv("EDI Data/redd survey data_surveyevent#.csv") %>%
+  mutate(date = as.Date(date, format = "%m/%d/%Y"),
+         year = year(date)) %>%
+  filter(year %in% 2020:2023)%>% 
+  distinct(date, `Survey.Event..`)
+
+redds2 <- redds1 %>% left_join(survey_number, by = c("date")) %>% rename(survey_num = `Survey.Event..`) ## add survey event to redd count data
+
+
+# Filter redd data to only include fall run (From Ryon 8/11/2026)
+# 2020 survey events = 4-9; 2021 survey events = 4-8; 2022 survey events = 4-12; 2023 survey events = 3-10
+redds3 <- redds2 %>% filter((year == 2020 & survey_num %in% 4:9)  |
+                              (year == 2021 & survey_num %in% 4:8)  |
+                              (year == 2022 & survey_num %in% 4:12) |
+                              (year == 2023 & survey_num %in% 3:10))
+
+
+
+# fill in 0 redd data by subsite and year, remove skipped samples for bedrock (survey 4 and 6 in 2020)
+redd_sum <- redds3 %>% group_by(site_id, site, year, survey_num, type) %>%  
+  summarize(total_redds = sum(number_red),.groups = "drop") %>%
+  complete(site_id, year, survey_num = 3:12, fill = list(total_redds =0)) %>% # fill in 0 redd data based on survey number, subsite id and year
+  filter((year == 2020 & survey_num %in% 4:9)  |       # Filter by survey numbers of interest
+           (year == 2021 & survey_num %in% 4:8)  | 
+           (year == 2022 & survey_num %in% 4:12) | 
+           (year == 2023 & survey_num %in% 3:10)) %>%
+  filter(!(site == "Bedrock" & year == 2020 & survey_num %in% c(4,6))) %>% # Remove these surveys because they were skipped
+  mutate(time = ifelse(year== 2023, "After", "Before"),    # update time, site and type or rows made in complete() function
+         site = str_extract(site_id, "^[^_]+"),
+         type = ifelse(site %in% control_sites, "Control", "Impact"))
+
+
+
+# calculate survey effort per year based on subsite area and number of surveys
+area <- sites1 %>% distinct(site_id, year, sub_area)      # Get the specific area for each subarea and year
+all_data <- redd_sum %>% left_join(area, by = c("site_id", "year")) %>%   # add subarea to the total number of redds per subsite 
+  group_by(site_id, year, time, type, sub_area) %>% 
+  summarize(total_redds = sum(total_redds), # get the total number of redds per subsite, year include time, type and subarea columns
+            n_surveys = n(),   # get the total amount of surveys for that year
+            area_surveyed = sub_area*n_surveys,.groups = "drop") %>% # calculate the total effort for the given subsite and year
+  mutate(density = total_redds/area_surveyed,               # Calculate the density based on total number of redds for the year and total area surveyed per subsite
+         binary_time = ifelse(time == "Before", 0, 1),      # Convert time to binary variable for modeling
+         binary_type = ifelse(type == "Control" , 0, 1)) %>%  # Convert type to binary variable for modeling
+  distinct() # pull distinct rows only
+
+
+# Add missing upper cottonwood subsites due to 0 redds
+add <- data.frame(site_id = c(rep("UpperCottonwood_2", 4),
+                              rep("UpperCottonwood_4", 4)),
+                  year = c(2020, 2021, 2022, 2023, 2020, 2021, 2022, 2023),
+                  time = c("Before", "Before", "Before", "After", "Before", "Before", "Before", "After"),
+                  type = c(rep("Impact", 8)),
+                  sub_area = c(rep(2,4), rep(16,4)),
+                  total_redds = 0,
+                  n_surveys = rep(c(6,5,9,8), 2))
+add$area_surveyed <- add$sub_area * add$n_surveys
+add$density <- add$total_redds / add$area_surveyed
+add$binary_time <- ifelse(add$time == "Before", 0, 1)
+add$binary_type = ifelse(add$type == "Control" , 0, 1)
+all_data <- rbind(all_data, add)
+all_data$site <-str_extract(all_data$site_id, "^[^_]+")
+
+
+
+
+# BACI Analysis ----------------------------------------------------------------
+# 1. Exploratory Plots
+ggplot(all_data) + 
+  geom_line(aes(x= year, y = density, color = site_id), show.legend = F)+ theme_bw()+
+  facet_wrap(~type, ncol =1)+
+  labs(x = "Year", y = "Redd Density", color = "Site Name")
+
+
+ggplot(all_data %>% mutate(time = factor(time, levels = c("Before", "After"))))+
+  geom_boxplot(aes(x = type, y = density, fill = type), show.legend = F)+
+  stat_summary(aes(x = type, y = density), fun = mean, geom = "point",
+               shape = 8, size = 2, color = "black") +
+  facet_wrap(~time) +
+  labs(x = "Site Type", y = "Redd Density", title = "Feather River")+
+  theme_bw()
+
+
+# 2. Analysis
+mod1 <- lmerTest::lmer(density ~ binary_time*binary_type + (1|site), data=all_data) 
+# Random effect for site controls for site-level differences. More relevant to Feather River since subsites within a site are more similar.
+# Instead of looking at sites separately, we are looking at the whole river. Site is a better grouping for the data than sub-id since subsamples from a site will probably have more similar results.
+# type*time interaction tests whether the change over time differs between control and impact sites.
+summary(mod1) # Note the significance of the interaction term. This will determine the results of the analysis. The interaction coefficient is the effect size.
+# If that interaction coefficient is negative, review the analysis and if the control sites are controls or treatments.
+
+
+
+# 3. Bootstrap Analysis
+# Subset by impact sites and control sites, then pull all data from those sites
+impact_sites <- unique(all_data$site_id[all_data$type=="Impact"]) 
+control_sites <- unique(all_data$site_id[all_data$type=="Control"]) 
+n_sites <- c(5,10,15) # samples to pull from each treatment, the upper n_sites value can not be larger than the number in the control and impact sites listed above.
+boot_itr <- 1000 # number of iterations
+
+# Bootstrap Results
+set.seed(2026) # set before calling the function for reproducibility
+baci_power <- boot_baci(impact_sites, control_sites, boot_itr, n_sites, all_data) ## Warning about ties sometimes happens this is due to 0 densities being resampled multiple times.
+baci_power # summary of the power for each n sampled in the bootstrap
+################################################################################
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Peak Spawning Timing BACI ----------------------------------------------------
+# Data Formatting and Reading in data
+# redd count data for the feather river that includes site, sub id, and sub area
+redds <- read.csv("formatted_data_R/2020_2023_FR_redds_subsite_join.csv") %>% select(date, location, number_red, year, site, sub_id, sub_area, treatment)
+sites <- read.csv("formatted_data_R/2020_2023_FR_spawning_subsite_poly_full_20260810.csv")
+
+
+# Filter site data to include the project and control sites of interest, create site id
+pre_post_sites <- c("Bedrock", "Cottonwood", "TopofAuditorium", "UpperCottonwood")  # list of treatment sites 
+control_sites <- c("LowerTableMountain", "TableMountain") # list of control sites
+# Filter site data to only include the treatment and control sites
+sites1 <- sites %>% 
+  filter(site %in% c(pre_post_sites, control_sites) & treatment %in% c("Pre-Project", "Post-Project", "Control")) %>%
+  mutate(site_id = paste0(site, "_", sub_id))
+
+
+# Filter redd data to only include redds from the sites of interest, create a column for time (before or after treatment) and type (control or impact).
+redds1 <- redds %>% 
+  filter(site %in% c(pre_post_sites, control_sites) & treatment %in% c("Pre-Project", "Post-Project", "Control")) %>%
+  mutate(date = as.Date(date, format = "%Y/%m/%d"),
+         site_id = paste0(site, "_", sub_id),  # subsite 
+         time = ifelse(year== 2023, "After", "Before"),
+         type = ifelse(treatment == "Control", "Control", "Impact"))
+
+# Add survey number to redd count data
+survey_number <- read.csv("EDI Data/redd survey data_surveyevent#.csv") %>%
+  mutate(date = as.Date(date, format = "%m/%d/%Y"),
+         year = year(date)) %>%
+  filter(year %in% 2020:2023)%>% 
+  distinct(date, `Survey.Event..`)
+
+redds2 <- redds1 %>% left_join(survey_number, by = c("date")) %>% rename(survey_num = `Survey.Event..`) ## add survey event to redd count data
+
+
+# Filter redd data to only include peak timing of fall run
+redds3 <- redds2 %>% filter((year == 2020 & survey_num %in% 6:8)  |
+                              (year == 2021 & survey_num %in% 5:7)  |
+                              (year == 2022 & survey_num %in% 5:7) |
+                              (year == 2023 & survey_num %in% 4:6))
+
+
+
+# fill in 0 redd data, remove skipped samples for bedrock (survey 4 and 6 in 2020)
+redd_sum <- redds3 %>% group_by(site_id, site, year, survey_num) %>%  
+  summarize(total_redds = sum(number_red),.groups = "drop") %>%
+  complete(site_id, year, survey_num = 4:8, fill = list(total_redds =0)) %>% # fill in 0 redd data based on survey number, subsite id and year
+  filter((year == 2020 & survey_num %in% 6:8)  |                   # Filter by survey numbers of interest
+           (year == 2021 & survey_num %in% 5:7)  | 
+           (year == 2022 & survey_num %in% 5:7) | 
+           (year == 2023 & survey_num %in% 4:6)) %>%
+  filter(!(site == "Bedrock" & year == 2020 & survey_num %in% c(4,6))) %>% # Remove these surveys because they were skipped
+  mutate(time = ifelse(year== 2023, "After", "Before"),    # update time, site and type or rows made in complete() function
+         site = str_extract(site_id, "^[^_]+"),
+         type = ifelse(site %in% control_sites, "Control", "Impact"))
+
+
+
+# calculate survey effort per year based on subsite area and number of surveys
+area <- sites1 %>% distinct(site_id, year, sub_area)      # Get the specific area for each subarea and year
+all_data <- redd_sum %>% left_join(area, by = c("site_id", "year")) %>%   # add subarea to the total number of redds per subsite 
+  group_by(site_id, year, time, type, sub_area) %>% 
+  summarize(total_redds = sum(total_redds), # get the total number of redds per subsite, year include time, type and subarea columns
+            n_surveys = n(),   # get the total amount of surveys for that year
+            area_surveyed = sub_area*n_surveys,.groups = "drop") %>% # calculate the total effort for the given subsite and year
+  mutate(density = total_redds/area_surveyed,               # Calculate the density based on total number of redds for the year and total area surveyed per subsite
+         binary_time = ifelse(time == "Before", 0, 1),      # Convert time to binary variable for modeling
+         binary_type = ifelse(type == "Control" , 0, 1)) %>%  # Convert type to binary variable for modeling
+  distinct() # pull distinct rows only
+
+
+# Add missing upper cottonwood due to 0 redds
+add <- data.frame(site_id = c(rep("UpperCottonwood_2", 4),
+                              rep("UpperCottonwood_4", 4)),
+                  year = c(2020, 2021, 2022, 2023, 2020, 2021, 2022, 2023),
+                  time = c("Before", "Before", "Before", "After", "Before", "Before", "Before", "After"),
+                  type = c(rep("Impact", 8)),
+                  sub_area = c(rep(2,4), rep(16,4)),
+                  total_redds = 0,
+                  n_surveys = rep(3,8))
+
+add$area_surveyed <- add$sub_area * add$n_surveys
+add$density <- add$total_redds / add$area_surveyed
+add$density <- ifelse(is.na(add$density), 0 , add$density)
+add$binary_time <- ifelse(add$time == "Before", 0, 1)
+add$binary_type = ifelse(add$type == "Control" , 0, 1)
+all_data2 <- rbind(all_data2, add)
+all_data2$site <-str_extract(all_data2$site_id, "^[^_]+")
+
+
+
+# BACI Analysis ----------------------------------------------------------------
+# 1. Exploratory Plots
+ggplot(all_data2) + 
+  geom_line(aes(x= year, y = density, color = site_id), show.legend = F)+ theme_bw()+
+  facet_wrap(~type, ncol=1)+
+  labs(x = "Year", y = "Redd Density")
+
+ggplot(all_data2 %>% mutate(time = factor(time, levels = c("Before", "After"))))+
+  geom_boxplot(aes(x = type, y = density, fill = type), show.legend=F)+
+  stat_summary(aes(x = type, y = density), fun = mean, geom = "point",
+               shape = 8, size = 2, color = "black") +
+  facet_wrap(~time) +
+  labs(x = "Site Type", y = "Redd Density")+
+  theme_bw()
+
+
+# 2. Analysis
+mod2<- lmerTest::lmer(density ~ binary_time*binary_type + (1|site), data=all_data2) 
+# Random effect for site controls for site-level differences. More relevant to Feather River since subsites within a site are more similar.
+# Instead of looking at sites separately, we are looking at the whole river. Site is a better grouping for the data than sub-id since subsamples from a site will probably have more similar results.
+# type*time interaction tests whether the change over time differs between control and impact sites.
+summary(mod2) # Note the significance of the interaction term. This will determine the results of the analysis. The interaction coefficient is the effect size.
+# If that interaction coefficient is negative, review the analysis and if the control sites are controls or treatments.
+
+
+
+# 3. Bootstrap Analysis -----
+# Subset by impact sites and control sites, then pull all data from those sites
+impact_sites <- unique(all_data2$site_id[all_data2$type=="Impact"]) 
+control_sites <- unique(all_data2$site_id[all_data2$type=="Control"])
+n_sites <- c(5,10,20,30)  # samples to pull from each treatment, the upper n_sites value can not be larger than the number in the control and impact sites listed above.
+boot_itr <- 1000 # number of iterations
+
+# Bootstrap Results
+set.seed(2026) # set before calling the function for reproducibility
+baci_power2 <- boot_baci(impact_sites, control_sites, boot_itr, n_sites, all_data2) ## Warning about ties sometimes happens this is due to 0 densities being resampled multiple times.
+baci_power2 # summary of the power for each n sampled in the bootstrap
+
