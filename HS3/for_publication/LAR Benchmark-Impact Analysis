@@ -1,0 +1,268 @@
+## Power analysis code By Kiera McNeely (Cramer Fish Sciences) 3/11/2026
+
+# The code below was developed using Lower American River (LAR) spawning ground (ground survey) data from 2022 - 2024 from restored and unrestored sites. 
+# The analysis examines how many samples are needed from each treatment type in order to detect that the restored sites have a higher density of redds than unresotred sites, reporting the estimated effect size and power for each sample size. 
+
+
+# Libraries ----
+library(effsize) ## calculating effect size
+library(dplyr) ## summarize and pipe operator for results in bootstrap function library(dplyr) ## data manipulations
+library(tidyr) ## complete observations, 0 redd data
+library(stringr) ## remove spaces from site names
+library(effsize) ## cohen D manual version
+library(ggplot2)
+
+
+# Function ----
+boot_func <- function(control, treatment, n_sites, boot_itr){
+  
+  total_rows <- length(n_sites)*boot_itr # pre-allocate results table
+  # create results table
+  boot_res <- data.frame(n = numeric(total_rows),         
+                         effect_size = numeric(total_rows),
+                         pvalue = numeric(total_rows))
+  counter <- 1 # counter for storing results
+  
+  for(n_site in n_sites){ # repeat bootstrap for each n value
+    for(i in 1:boot_itr){ 
+      
+      # resample data
+      con <- control[sample(nrow(control), size = n_site, replace = TRUE), ] # resample control data with replacement
+      treat <- treatment[sample(nrow(treatment), size = n_site, replace = TRUE), ] # resample treatment data with replacement
+      
+      # Effect size
+      eff_size <- as.numeric(cohen.d(treat$density, con$density)$estimate)
+      eff_size[is.infinite(eff_size)] <- NA # change Inf to Na for ease when calculating mean effect size
+      
+      # non parametric test: tryCatch() added due to NA and INF values with small sample sizes and 0 densities. Warning about ties is OK.
+      MW <- tryCatch(
+        wilcox.test(treat$density, con$density, alternative = "greater", paired = FALSE), # alternative = "greater" tests for redd density treatment > redd density control.
+        error = function(e) list(p.value = NA))
+      p_value <- MW$p.value
+      
+      # Save results
+      res <- c(n_site, eff_size, p_value)
+      boot_res[counter,] <- res
+      counter <- counter +1
+      
+    } #/bootstrap
+  } #/sample size
+  
+  # summary of results for each sample size.
+  summary <- boot_res %>% group_by(n) %>% summarize(mean_eff_size = mean(effect_size, na.rm = T),
+                                                    mean_power = mean(pvalue < 0.05, na.rm=T)) #Accept Alternative if p-value is less than 0.05.
+  return(summary)
+  
+} #/ Function
+
+
+# Lower American River Example -----
+# Redd Data
+redd_data <- read.csv("2022_2024_redds_spawning_area_subsample_merged.csv") %>%
+  mutate(site = ifelse(esc_year == 2024 & treatment == "Control" & site == "Lower Riverbend", "Upper Riverbend", site), ## fix this site
+         site = tolower(site),
+         site = str_replace_all(site, " ", ""),
+         siteid = paste0(site,"_", sub_samp_id)) %>% # create site ID
+  filter(species == "CHINOOK" & !is.na(sub_samp_area_m2)) # only keep chinook observations
+redd_data1 <- redd_data %>% 
+              group_by(esc_year, siteid, treatment, sub_samp_area_m2, survey_num) %>% 
+              summarize(redd_count_by_survey = n(), .groups ="drop") # calculated redd count
+
+# Site Data
+site_data <- read.csv("2022_2024_subsample_poly_area.csv") 
+site_data1 <- site_data %>%
+              mutate(site = tolower(site),
+                     site = str_replace_all(site, " ", ""),
+                     siteid = paste0(site, "_", sub_id),
+                     total_surveys = ifelse(esc_year ==2023, 4,5)) %>%
+              uncount(total_surveys, .id = "survey_num")
+
+# Merge data, add 0 redds for surveys with no redds
+## This data set has individual rows for every survey at every site.
+data_survey <- site_data1 %>% left_join(redd_data1 %>% select(siteid, esc_year, treatment, survey_num, redd_count_by_survey), 
+                                        by = c("siteid", "esc_year", "treatment", "survey_num")) %>%
+               mutate(redd_count_by_survey = ifelse(is.na(redd_count_by_survey), 0, redd_count_by_survey)) 
+
+# This data set has individual rows for every site, Use this data for the analysis
+data_site <- data_survey %>% group_by(esc_year, siteid, treatment, sub_area) %>% 
+              summarize(total_surveys = max(survey_num),
+                        redd_count_by_site = sum(redd_count_by_survey),
+                        .groups = "drop") %>%
+              mutate(total_area_surveyed = sub_area*total_surveys)
+# assign density and location
+data_site$density <- ifelse(data_site$total_area_surveyed == 0 & data_site$redd_count_by_site == 0, 0,
+                            data_site$redd_count_by_site / data_site$total_area_surveyed)
+data_site$location <- ifelse(grepl("riverbend", data_site$siteid, ignore.case = T), "Downstream", "Upstream" )
+
+
+
+
+
+# Analysis -----
+# The analysis is completed by year (2022, 2023, and 2024), location (Upstream, Downstream), and for peak timing by year.
+
+
+## Escapement Year 2022 ------------------------------------------------------------
+data_site22 <- data_site %>% filter(esc_year == 2022) # subset year of interest
+control <- data_site22[data_site22$treatment == "Control", ] # control Data
+treatment <- data_site22[data_site22$treatment != "Control", ] # treatment Data
+n_sites <- seq(from = 2, to = 35, by = 2)  # number of samples for each treatment for each power analysis (n_sites will vary based on your data and how many sites you have to pull from. ) 
+boot_itr <- 1000 # Number of bootstrap iterations
+
+set.seed(2026)
+res_2022 <- boot_func(control, treatment, n_sites, boot_itr) ## Warning about ties sometimes happens this is due to 0 densities being resampled multiple times. 
+# These results show that we reach the power threshold when 25-30 sites per treatment are surveyed during a dry year.
+# The Cohens D is large, meaning there's a great difference between the two group, minimal overlap between the groups.
+
+
+
+## Escapement Year 2023 ------------------------------------------------------------
+data_site23 <- data_site %>% filter(esc_year == 2023) # subset year of interest
+control <- data_site23[data_site23$treatment == "Control", ] # control Data
+treatment <- data_site23[data_site23$treatment != "Control", ] # treatment Data
+n_sites <- seq(from = 20, to = 80, by = 5)  # number of samples for each treatment for each power analysis (n_sites will vary based on your data and how many sites you have to pull from. ) 
+boot_itr <- 1000 # Number of bootstrap iterations
+
+set.seed(2026)
+res_2023 <- boot_func(control, treatment, n_sites, boot_itr) ## Warning about ties sometimes happens this is due to 0 densities being resampled multiple times. 
+# These results show that we reach the power threshold when 70 sites per treatment are surveyed during a dry year.
+# The Cohens D is large, meaning there's a great difference between the two group, minimal overlap between the groups. 
+
+
+
+## Escapement Year 2024 ------------------------------------------------------------
+data_site24 <- data_site %>% filter(esc_year == 2024) # subset year of interest
+control <- data_site24[data_site24$treatment == "Control", ] # control Data
+treatment <- data_site24[data_site24$treatment != "Control", ] # treatment Data
+n_sites <- seq(from = 75, to = 115, by = 5)  # number of samples for each treatment for each power analysis (n_sites will vary based on your data and how many sites you have to pull from. ) 
+boot_itr <- 1000 # Number of bootstrap iterations
+
+set.seed(2026)
+res_2024 <- boot_func(control, treatment, n_sites, boot_itr) ## Warning about ties sometimes happens this is due to 0 densities being resampled multiple times. 
+# These results show that we reach the power threshold when 110-115 sites per treatment are surveyed during a dry year.
+# The Cohens D is medium, meaning there's a great difference between the two group, minimal overlap between the groups.  
+
+
+
+## Location: Downstream ------------------------------------------------------------
+data_siteDS <- data_site[data_site$location=="Downstream",] # subst location of interest
+control <- data_siteDS[data_siteDS$treatment == "Control", ] # control Data
+treatment <- data_siteDS[data_siteDS$treatment != "Control", ] # treatment Data
+n_sites <- seq(from = 2, to = 112, by = 5)  # number of samples for each treatment for each power analysis (n_sites will vary based on your data and how many sites you have to pull from. ) 
+boot_itr <- 1000 # Number of bootstrap iterations
+
+set.seed(2026)
+res_down <- boot_func(control, treatment, n_sites, boot_itr) ## Warning about ties sometimes happens this is due to 0 densities being resampled multiple times. 
+# These results show that we reach the power threshold when > 112 sites per treatment are surveyed, only resulting in a power of 0.67.
+# The Cohens D is medium, meaning there's a great difference between the two group, minimal overlap between the groups.  
+
+
+
+## Location: Upstream ------------------------------------------------------------
+data_siteUS <- data_site[data_site$location=="Upstream",] # subst location of interest
+control <- data_siteUS[data_siteUS$treatment == "Control", ] # control Data
+treatment <- data_siteUS[data_siteUS$treatment != "Control", ] # treatment Data
+n_sites <- seq(from = 2, to = 94, by = 5) # number of samples for each treatment for each power analysis (n_sites will vary based on your data and how many sites you have to pull from. ) 
+boot_itr <- 1000 # Number of bootstrap iterations
+
+set.seed(2026)
+res_up <- boot_func(control, treatment, n_sites, boot_itr) ## Warning about ties sometimes happens this is due to 0 densities being resampled multiple times. 
+# More then 92 site are needed to reach the power threshold.
+
+
+
+
+
+
+
+
+
+
+
+# Peak spawning timing analysis -----
+# Format data to only include data of interest
+redd_data3 <- redd_data %>% filter(!(esc_year==2022 & survey_num %in% c(1,2)),
+                                   !(esc_year==2023 & survey_num %in% c(1)),
+                                   !(esc_year == 2024 &survey_num %in%  c(1,5))) %>% group_by(esc_year, siteid, treatment,
+                                                                                              sub_samp_area_m2, survey_num) %>%
+  summarize(redd_count_by_survey = n(), .groups ="drop")
+survey_num_year2 <- tibble(
+  esc_year = c(2022, 2023, 2024),
+  survey_list = list(c(3, 4, 5),
+                     c(2, 3, 4),
+                     c(2, 3, 4)))
+
+site_data3 <- site_data %>%
+  mutate(site = tolower(site),
+         site = str_replace_all(site, " ", ""),
+         siteid = paste0(site, "_", sub_id)) %>%
+  left_join(survey_num_year2, by = "esc_year") %>% ## only use selected surveys
+  unnest(survey_list) %>%
+  rename(survey_num = survey_list)
+
+# Merge data, add 0 redds for surveys with no redds
+## This data set has individual rows for every survey at every site. This data will be helpful if we are sampling different sites everytime we conduct a survey.
+data_survey3 <- site_data3 %>% left_join(redd_data3 %>% select(siteid, esc_year, treatment, survey_num, redd_count_by_survey),
+                                         by = c("siteid", "esc_year", "treatment", "survey_num")) %>%
+  mutate(redd_count_by_survey = ifelse(is.na(redd_count_by_survey), 0, redd_count_by_survey))
+# This data set has individual rows for every site, this is helpful if we pick sites and know that we will be resampling those sites 5 or 4 times rather than switching to a different site the next time we survey.
+data_site3 <- data_survey3 %>% group_by(esc_year, siteid, treatment, sub_area) %>%
+  summarize(total_surveys = 3, ## Edit this, we are only looking at 3 surveys per site
+            redd_count_by_site = sum(redd_count_by_survey),
+            .groups = "drop") %>%
+  mutate(total_area_surveyed = sub_area*total_surveys)
+# assign density and location
+data_site3$density <- ifelse(data_site3$total_area_surveyed == 0 & data_site3$redd_count_by_site == 0, 0,
+                            data_site3$redd_count_by_site / data_site3$total_area_surveyed)
+data_site3$location <- ifelse(grepl("riverbend", data_site3$siteid, ignore.case = T), "Downstream", "Upstream" )
+
+
+
+
+## Peak Timing Results Escapement year 2022 ------------------------------------------------------------
+peakdata_site22 <- data_site3[data_site3$esc_year==2022,] # year of interest
+control <- peakdata_site22[peakdata_site22$treatment == "Control", ]  # Control Data
+treatment <- peakdata_site22[peakdata_site22$treatment != "Control", ] # Treatment Data
+n_sites <- seq(from = 2, to = 35, by = 2) # number of samples for each treatment for each power analysis (n_sites will vary based on your data and how many sites you have to pull from. ) 
+boot_itr <- 1000 # Number of bootstrap iterations
+
+set.seed(2026)
+res_peak22 <- boot_func(control, treatment, n_sites, boot_itr) ## Warning about ties sometimes happens this is due to 0 densities being resampled multiple times. 
+# These results show that we reach the power threshold when 32 sites per treatment are surveyed
+# The Cohens D is large, meaning there's a great difference between the two group, minimal overlap between the groups.
+
+
+
+
+## Peak Timing Results Escapement year 2023 ------------------------------------------------------------
+peakdata_site23 <- data_site3[data_site3$esc_year==2023,] # year of interest
+control <- peakdata_site23[peakdata_site23$treatment == "Control", ]  # Control Data
+treatment <- peakdata_site23[peakdata_site23$treatment != "Control", ] # Treatment Data
+n_sites <- seq(from = 20, to = 80, by = 5) # number of samples for each treatment for each power analysis (n_sites will vary based on your data and how many sites you have to pull from. ) 
+boot_itr <- 1000 # Number of bootstrap iterations
+
+set.seed(2026)
+res_peak23 <- boot_func(control, treatment, n_sites, boot_itr) ## Warning about ties sometimes happens this is due to 0 densities being resampled multiple times. 
+# These results show that we reach the power threshold when 70 sites per treatment are surveyed
+# The Cohens D is large, meaning there's a great difference between the two group, minimal overlap between the groups. 
+
+
+
+
+## Peak Timing Results Escapement year 2024 ------------------------------------------------------------
+peakdata_site24 <- data_site3[data_site3$esc_year==2024,] # year of interest
+control <- peakdata_site24[peakdata_site24$treatment == "Control", ]  # Control Data
+treatment <- peakdata_site24[peakdata_site24$treatment != "Control", ] # Treatment Data
+n_sites <- seq(from = 75, to = 115, by = 5) # number of samples for each treatment for each power analysis (n_sites will vary based on your data and how many sites you have to pull from. ) 
+boot_itr <- 1000 # Number of bootstrap iterations
+
+set.seed(2026)
+res_peak24 <- boot_func(control, treatment, n_sites, boot_itr) ## Warning about ties sometimes happens this is due to 0 densities being resampled multiple times. 
+# These results show that we reach the power threshold when 110 sites per treatment are surveyed.
+# The Cohens D is medium, meaning there's a great difference between the two group, minimal overlap between the groups.  
+
+
+
+
+
+   
