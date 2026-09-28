@@ -1,0 +1,225 @@
+# LAR Aerial redd data power analysis - BACI for each individual project/site
+# Individual BAIC Power analysis per project. Compare the treatment site to the closest benchmark site.
+# Due to site level analysis, the random effect will be subsite id. Be sure that your data follows this format before proceeding with this method.
+ 
+
+# Libraries
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(lmerTest) 
+library(sf) # spatial Join
+
+
+# Bootstrap Function -- This uses the binary type and time variable as the inputs to the model. These are binary to ensure that the interpretation of the model is correct.
+# The random effect in this function is 'subsite' because the analysis is comparing one site (treatment) to another (benchmark). 
+# Ensure your data follows this format before proceeding.
+
+boot_baci <- function(impact_sites, control_sites, boot_itr, n_sites, all_data){ # need list of impact sites, control sites, data to filter from
+  
+  # create results table
+  total_rows <- length(n_sites)*boot_itr # pre-allocate results table
+  boot_res <- data.frame(n = numeric(total_rows),         
+                         effect_size = numeric(total_rows),
+                         pvalue = numeric(total_rows))
+  counter <- 1 # counter for storing results
+  site_used <- data.frame()
+  
+  
+  for(n_site in n_sites){# repeat bootstrap for each n value
+    for(i in 1:boot_itr){ #i=1
+      
+      # resample data
+      imp <- sample(impact_sites, size = n_site, replace = T)
+      con <- sample(control_sites, size = n_site, replace = T)
+      all_sites <- c(imp,con)
+      
+      # pull data for those sites
+      mod_data <- NULL
+      for(s in all_sites){
+        keep <- all_data[all_data$site_id == s,]
+        mod_data <- rbind(mod_data,keep)
+      }
+      
+      # BACI
+      mod <- lmerTest::lmer(density ~ binary_time*binary_type + (1|site_id), data=mod_data) # make sure the random effect is the same grouping variable in your data set
+      mod_sum <- summary(mod)
+      p_value <- mod_sum$coefficients[4, 5]
+      eff_size <- ifelse(p_value <= 0.05, mod_sum$coefficients[4, 1], NA) #grab coefficient, ONLY when significant
+      
+      
+      # Save results
+      res <- c(n_site, eff_size, p_value)
+      boot_res[counter,] <- res
+      counter <- counter +1
+      
+    } #/bootstrap
+  } #/sample size
+  
+  # summary of results for each sample size.
+  summary <- boot_res %>% group_by(n) %>% summarize(mean_eff_size = mean(effect_size, na.rm=T),
+                                                    mean_power = mean(pvalue < 0.05, na.rm=T)) #Accept Alternative if p-value is less than 0.05.
+  return(summary)
+}
+
+
+redd_data <- read.csv("../LAR/aerial_redds/2021_2025_LAR_aerial_redds_subsite_pts_all.csv")
+site_data <- read.csv("../LAR/aerial_redds/2021_2025_LAR_aerial_subsite_poly_all.csv")
+
+
+# summarize redd data
+redd_data <- redd_data %>% group_by(survey, esc_year, site, sub_id) %>% summarize(redd_count = n())
+
+#Add in 0 redd data
+site_data$total_surveys <- ifelse(site_data$esc_year ==2021, 2, 3)
+site_data <- site_data %>%  uncount(total_surveys, .id = "survey")
+
+# Add redd data to site data
+data <- site_data %>% left_join(redd_data, by = c("site", "esc_year", "sub_id", "survey")) %>%
+        mutate(redd_count = ifelse(is.na(redd_count), 0, redd_count),
+               site_id = paste0(site,"_", sub_id),
+               type = ifelse(treatment == "Benchmark","Control","Impact" ))
+
+data$site <- ifelse(data$site == "Upper River Bend" & data$type == "Impact", "Upper River Bend PrePost", data$site)
+data$site_id = paste0(data$site,"_", data$sub_id)
+
+
+## Pair by project, then add time and bootstrap analysis
+# Project 1 = upper river bend (pre/post) and upper river bend (benchmark), Before = 2021-2022, after 2023-2025
+# Project 2 = River Bend (pre/post) and Upper river bend (benchmark), Before = 2021-2023, after = 2024-2025
+# Project 3 = Lower Sailor Bar and Sailor Bar (Benchmark), Before = 2021, After = 2022-2025
+# Project 4 = Nimbus Basin and sailor Bar(Benchmark), Before = 2021, After =2022-2025
+
+# Project 1 ------
+## Format Data
+p1 <- data %>% filter(site %in% c("Upper River Bend", "Upper River Bend PrePost")) %>%
+      mutate(time = ifelse(esc_year <= 2022, "Before", "After"))
+p1 <- p1 %>% group_by(site_id, esc_year, time, type, sub_area) %>% 
+             summarize(total_redds = sum(redd_count),
+                       n_surveys = n(),
+                       area_surveyed = (n_surveys * first(sub_area)), .groups = "drop") %>%
+             mutate(density = total_redds/area_surveyed) %>% distinct() %>%
+            mutate(binary_time = ifelse(time =="Before", 0,1),
+                   binary_type = ifelse(type == "Control", 0, 1))
+
+
+## Plot Data 
+ggplot(p1 %>% mutate(time = factor(time, levels = c("Before", "After"))))+
+  geom_boxplot(aes(x = type, y = density, fill = type))+
+  facet_wrap(~time) +
+  labs(x = "Site Type", y = "Redd Density", title = "LAR Aerial Project: Upper River Bend")
+
+
+## Analysis
+mod1 <- lmerTest::lmer(density ~ binary_time*binary_type + (1|site_id), data=p1)
+summary(mod1)
+# No significance detected p = 0.121
+# Due to no significance, no power analysis will be conducted
+
+
+
+
+
+
+
+# Project 2 ------
+## Format Data
+p2 <- data %>% filter(site %in% c("Upper River Bend", "River Bend")) %>%
+  mutate(time = ifelse(esc_year <= 2023, "Before", "After"))
+p2 <- p2 %>% group_by(site_id, esc_year, time, type, sub_area) %>% 
+  summarize(total_redds = sum(redd_count),
+            n_surveys = n(),
+            area_surveyed = (n_surveys * first(sub_area)), .groups = "drop") %>%
+  mutate(density = total_redds/area_surveyed) %>% distinct() %>%
+  mutate(binary_time = ifelse(time =="Before", 0,1),
+         binary_type = ifelse(type == "Control", 0, 1))
+
+## Plot Data 
+ggplot(p2 %>% mutate(time = factor(time, levels = c("Before", "After"))))+
+  geom_boxplot(aes(x = type, y = density, fill = type))+
+  facet_wrap(~time) +
+  labs(x = "Site Type", y = "Redd Density", title = "LAR Aerial Project: River Bend")
+
+## Analysis
+mod2 <- lmerTest::lmer(density ~ binary_time*binary_type + (1|site_id), data=p2)
+summary(mod2)
+# significant interaction detected p = 0.023
+
+### Power Bootstrap
+impact_sites <- unique(p2$site_id[p2$type=="Impact"])
+control_sites <- unique(p2$site_id[p2$type=="Control"])
+n_sites <- c(10, 20, 30, 40, 50, 60, 70, 80, 90, 100) # samples to pull from each treatment, sample with replacement so can do more than what we have available.
+boot_itr <- 1000 # number of iterations
+set.seed(2026) # set before calling the function for reproducibility
+baci_power_p2 <- boot_baci(impact_sites, control_sites, boot_itr, n_sites, all_data=p2) # boundary singular means 0 variance, due to lots of 0's in the data. 
+baci_power_p2 # Results
+
+
+
+
+
+
+
+# Project 3 ------
+## Format Data
+p3 <- data %>% filter(site %in% c("Lower Sailor Bar", "Sailor Bar")) %>%
+  mutate(time = ifelse(esc_year <= 2021, "Before", "After"))
+p3 <- p3 %>% group_by(site_id, esc_year, time, type, sub_area) %>% 
+  summarize(total_redds = sum(redd_count),
+            n_surveys = n(),
+            area_surveyed = (n_surveys * first(sub_area)), .groups = "drop") %>%
+  mutate(density = total_redds/area_surveyed) %>% distinct() %>%
+  mutate(binary_time = ifelse(time =="Before", 0,1),
+         binary_type = ifelse(type == "Control", 0, 1))
+
+## Plot Data 
+ggplot(p3 %>% mutate(time = factor(time, levels = c("Before", "After"))))+
+  geom_boxplot(aes(x = type, y = density, fill = type))+
+  facet_wrap(~time) +
+  labs(x = "Site Type", y = "Redd Density", title = "LAR Aerial Project: Lower Sailor Bar")
+
+## Analysis
+mod3 <- lmerTest::lmer(density ~ binary_time*binary_type + (1|site_id), data=p3)
+summary(mod3)
+# significant interaction not detected p = 0.08
+# Due to no significance, no power analysis will be conducted
+
+
+
+
+
+
+# Project 4 ------ Nimbus Basin and sailor Bar(Benchmark), Before = 2021, After =2022-2025
+## Format Data
+p4 <- data %>% filter(site %in% c("Nimbus Basin", "Sailor Bar")) %>%
+  mutate(time = ifelse(esc_year <= 2021, "Before", "After"))
+p4 <- p4 %>% group_by(site_id, esc_year, time, type, sub_area) %>% 
+  summarize(total_redds = sum(redd_count),
+            n_surveys = n(),
+            area_surveyed = (n_surveys * first(sub_area)), .groups = "drop") %>%
+  mutate(density = total_redds/area_surveyed) %>% distinct() %>%
+  mutate(binary_time = ifelse(time =="Before", 0,1),
+         binary_type = ifelse(type == "Control", 0, 1)) %>%
+  filter(site_id != "Nimbus Basin_57") ## area == 0, so density == 0, not existent.
+
+
+## Plot Data 
+ggplot(p4 %>% mutate(time = factor(time, levels = c("Before", "After"))))+
+  geom_boxplot(aes(x = type, y = density, fill = type))+
+  facet_wrap(~time) +
+  labs(x = "Site Type", y = "Redd Density", title = "LAR Aerial Project: Nimbus Basin")
+
+## Analysis
+mod4 <- lmerTest::lmer(density ~ binary_time*binary_type + (1|site_id), data=p4)
+summary(mod4)
+# significant interaction detected p = 0.004
+### Bootstrap
+impact_sites <- unique(p4$site_id[p4$type=="Impact"])
+control_sites <- unique(p4$site_id[p4$type=="Control"])
+n_sites <- c(4,6,8,10,12,14,15) # samples to pull from each treatment --
+boot_itr <- 1000 # number of iterations
+set.seed(2026) # set before calling the function for reproducibility
+baci_power_p4 <- boot_baci(impact_sites, control_sites, boot_itr, n_sites, all_data=p4) # boundary singular means 0 variance, due to lots of 0's in the data.
+baci_power_p4
+
+
